@@ -3,16 +3,28 @@ import { createHash } from 'crypto'
 
 /** 防止递归触发 Hover 的锁 */
 let isInsideHover = false
-/** 翻译缓存 Map（内存）：hash -> { text: 翻译结果, time: 时间戳 } */
-let translationCache = new Map<string, { text: string; time: number }>()
+
+/** 缓存条目 */
+interface CacheEntry {
+	original: string
+	text: string
+	time: number
+}
+
+/** 翻译缓存 Map：hash -> CacheEntry */
+let translationCache = new Map<string, CacheEntry>()
+
 /** 当前显示模式：true 显示翻译，false 显示原文 */
 let showTranslated = true
+
 /** 全局 ExtensionContext，用于持久化缓存 */
 let globalContext: vscode.ExtensionContext
-/** 原文到 MD5 的映射（用于重新翻译） */
-let originalToHash = new Map<string, string>()
+
 /** 缓存过期时间：毫秒，默认 7 天 */
 const CACHE_EXPIRE_TIME = 7 * 24 * 60 * 60 * 1000
+
+/** 延迟保存缓存的防抖定时器 */
+let saveTimeout: NodeJS.Timeout | null = null
 
 /**
  * 插件激活入口
@@ -21,16 +33,12 @@ export function activate(context: vscode.ExtensionContext) {
 	globalContext = context
 
 	// 初始化缓存
-	const savedCache = context.globalState.get<Record<string, { text: string; time: number }>>('translationCache', {})
+	const savedCache = context.globalState.get<Record<string, CacheEntry>>('translationCache', {})
 	translationCache = new Map(Object.entries(savedCache))
-
-	// 初始化原文映射
-	const savedOriginalMap = context.globalState.get<Record<string, string>>('originalToHash', {})
-	originalToHash = new Map(Object.entries(savedOriginalMap))
 
 	/** Hover Provider */
 	const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
-		async provideHover(document, position, token) {
+		async provideHover(document, position) {
 			if (isInsideHover) return
 			isInsideHover = true
 
@@ -55,13 +63,12 @@ export function activate(context: vscode.ExtensionContext) {
 				// 顶部按钮行
 				const encodedText = Buffer.from(originalText, 'utf-8').toString('base64')
 				const modeLabel = showTranslated ? '显示原文' : '显示译文'
-
 				md.appendMarkdown(
-					`[${modeLabel}](command:hoverTranslator.toggleMode)&nbsp;` +
+					`✨ **悬浮文档翻译** &nbsp;&nbsp;👉&nbsp;&nbsp;[${modeLabel}](command:hoverTranslator.toggleMode)&nbsp;` +
 					`[重新翻译](command:hoverTranslator.retranslate?${encodeURIComponent(JSON.stringify([encodedText]))})`
 				)
 
-				// 仅在显示翻译时显示翻译内容
+				// 显示翻译内容（或原文）
 				if (showTranslated) {
 					md.appendMarkdown('\n\n' + translatedText)
 				}
@@ -86,52 +93,59 @@ export function activate(context: vscode.ExtensionContext) {
 	const retranslate = vscode.commands.registerCommand('hoverTranslator.retranslate', async (encodedText: string) => {
 		if (!encodedText) return
 		const originalText = Buffer.from(encodedText, 'base64').toString('utf-8')
-		const hash = md5(originalText)
-		translationCache.delete(hash)
-		originalToHash.delete(originalText)
-		await saveCache()
-		const translated = await translateText(originalText)
-		if (translated && !translated.startsWith('(翻译失败')) {
-			translationCache.set(hash, { text: translated, time: Date.now() })
-			originalToHash.set(originalText, hash)
-			await saveCache()
-			vscode.window.showInformationMessage('🐾 已重新翻译当前 Hover 内容～')
-		}
+		await retranslateText(originalText)
+		vscode.window.showInformationMessage('🐾 已重新翻译当前 Hover 内容～')
 	})
 
 	context.subscriptions.push(hoverProvider, toggleMode, retranslate)
 }
 
 /**
- * 获取翻译文本（带缓存和过期机制）
+ * 获取翻译文本（缓存 + 过期 + 懒惰清理）
  */
 async function getTranslatedText(text: string): Promise<string> {
 	const hash = md5(text)
 	const cached = translationCache.get(hash)
 
-	// 检查缓存是否存在且未过期
-	if (cached && Date.now() - cached.time < CACHE_EXPIRE_TIME) {
-		return cached.text
+	if (cached) {
+		if (Date.now() - cached.time < CACHE_EXPIRE_TIME) {
+			return cached.text
+		} else {
+			translationCache.delete(hash) // 过期就删除
+		}
 	}
 
-	// 调用翻译接口
 	const translated = await translateText(text)
 	if (translated && !translated.startsWith('(翻译失败')) {
-		translationCache.set(hash, { text: translated, time: Date.now() })
-		originalToHash.set(text, hash)
-		await saveCache()
+		translationCache.set(hash, { original: text, text: translated, time: Date.now() })
+		saveCacheDebounced()
 	}
 
 	return translated
 }
 
 /**
- * 将缓存持久化到 globalState
+ * 重新翻译
  */
-async function saveCache() {
-	if (!globalContext) return
-	await globalContext.globalState.update('translationCache', Object.fromEntries(translationCache))
-	await globalContext.globalState.update('originalToHash', Object.fromEntries(originalToHash))
+async function retranslateText(originalText: string) {
+	const hash = md5(originalText)
+	translationCache.delete(hash)
+	const translated = await translateText(originalText)
+	if (translated && !translated.startsWith('(翻译失败')) {
+		translationCache.set(hash, { original: originalText, text: translated, time: Date.now() })
+		saveCacheDebounced()
+	}
+}
+
+/**
+ * 延迟保存缓存（防抖）
+ */
+function saveCacheDebounced() {
+	if (saveTimeout) clearTimeout(saveTimeout)
+	saveTimeout = setTimeout(async () => {
+		if (!globalContext) return
+		await globalContext.globalState.update('translationCache', Object.fromEntries(translationCache))
+	}, 500)
 }
 
 /**
