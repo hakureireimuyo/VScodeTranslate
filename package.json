@@ -19,8 +19,8 @@
       "properties": {
         "hoverTranslator.baseURL": {
           "type": "string",
-          "default": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
-          "description": "大模型 API 接口地址，默认使用阿里百炼接口"
+          "default": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          "description": "大模型 API 接口地址，默认使用阿里百炼接口，实际调用地址：${baseURL}/chat/completions"
         },
         "hoverTranslator.apiKey": {
           "type": "string",
@@ -30,12 +30,17 @@
         "hoverTranslator.model": {
           "type": "string",
           "default": "qwen3-next-80b-a3b-instruct",
-          "description": "使用的大模型名称"
+          "description": "大模型名称"
         },
         "hoverTranslator.promptTemplate": {
           "type": "string",
           "default": "请将以下文本翻译为中文：\\n${content}",
-          "description": "提示词模板，其中 ${content} 表示原文内容占位符"
+          "markdownDescription": "提示词模板，其中 `${content}` 表示原文内容占位符, 可以使用自定义提示词来丰富和调整翻译效果"
+        },
+        "hoverTranslator.startupDelay": {
+          "type": "number",
+          "default": 3000,
+          "description": "插件首次启动延迟时间（毫秒），该设置确保翻译内容始终在悬浮提示的最顶部显示，如果发现翻译结果在底部，则适当调整延迟时间"
         }
       }
     },

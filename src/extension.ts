@@ -20,8 +20,8 @@ let showTranslated = true
 /** 全局 ExtensionContext，用于持久化缓存 */
 let globalContext: vscode.ExtensionContext
 
-/** 缓存过期时间：毫秒，默认 7 天 */
-const CACHE_EXPIRE_TIME = 7 * 24 * 60 * 60 * 1000
+/** 缓存过期时间：毫秒，默认 30 天 */
+const CACHE_EXPIRE_TIME = 30 * 24 * 60 * 60 * 1000
 
 /** 延迟保存缓存的防抖定时器 */
 let saveTimeout: NodeJS.Timeout | null = null
@@ -32,72 +32,81 @@ let saveTimeout: NodeJS.Timeout | null = null
 export function activate(context: vscode.ExtensionContext) {
 	globalContext = context
 
-	// 初始化缓存
-	const savedCache = context.globalState.get<Record<string, CacheEntry>>('translationCache', {})
-	translationCache = new Map(Object.entries(savedCache))
+	// 获取用户配置的首次启动延迟时间（毫秒），默认 5000ms
+	const config = vscode.workspace.getConfiguration('hoverTranslator')
+	const startupDelay = config.get<number>('startupDelay', 5000)
 
-	/** Hover Provider */
-	const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
-		async provideHover(document, position) {
-			if (isInsideHover) return
-			isInsideHover = true
+	console.log(`🐾 hoverTranslator: 插件将在 ${startupDelay} ms 后启动 HoverProvider`)
 
-			try {
-				// 获取原生 Hover
-				const originalHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-					'vscode.executeHoverProvider',
-					document.uri,
-					position
-				)
-				if (!originalHovers || originalHovers.length === 0) return
+	setTimeout(() => {
+		// 初始化缓存
+		const savedCache = context.globalState.get<Record<string, CacheEntry>>('translationCache', {})
+		translationCache = new Map(Object.entries(savedCache))
 
-				const originalText = originalHovers
-					.map(h => h.contents.map(c => (c as vscode.MarkdownString).value ?? String(c)).join('\n'))
-					.join('\n\n')
+		/** Hover Provider */
+		const hoverProvider = vscode.languages.registerHoverProvider({ scheme: 'file' }, {
+			async provideHover(document, position) {
+				if (isInsideHover) return
+				isInsideHover = true
 
-				const translatedText = await getTranslatedText(originalText)
+				try {
+					// 获取原生 Hover
+					const originalHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+						'vscode.executeHoverProvider',
+						document.uri,
+						position
+					)
+					if (!originalHovers || originalHovers.length === 0) return
 
-				const md = new vscode.MarkdownString(undefined, true)
-				md.isTrusted = true
+					const originalText = originalHovers
+						.map(h => h.contents.map(c => (c as vscode.MarkdownString).value ?? String(c)).join('\n'))
+						.join('\n\n')
 
-				// 顶部按钮行
-				const encodedText = Buffer.from(originalText, 'utf-8').toString('base64')
-				const modeLabel = showTranslated ? '显示原文' : '显示译文'
-				md.appendMarkdown(
-					`✨ **悬浮文档翻译** &nbsp;&nbsp;👉&nbsp;&nbsp;[${modeLabel}](command:hoverTranslator.toggleMode)&nbsp;` +
-					`[重新翻译](command:hoverTranslator.retranslate?${encodeURIComponent(JSON.stringify([encodedText]))})`
-				)
+					const translatedText = await getTranslatedText(originalText)
 
-				// 显示翻译内容（或原文）
-				if (showTranslated) {
-					md.appendMarkdown('\n\n' + translatedText)
+					const md = new vscode.MarkdownString(undefined, true)
+					md.isTrusted = true
+
+					// 顶部按钮行
+					const encodedText = Buffer.from(originalText, 'utf-8').toString('base64')
+					const modeLabel = showTranslated ? '显示原文' : '显示译文'
+					md.appendMarkdown(
+						`✨ **悬浮文档翻译** &nbsp;&nbsp;👉&nbsp;&nbsp;[${modeLabel}](command:hoverTranslator.toggleMode)&nbsp;` +
+						`[重新翻译](command:hoverTranslator.retranslate?${encodeURIComponent(JSON.stringify([encodedText]))})`
+					)
+
+					// 显示翻译内容（置顶）
+					if (showTranslated) {
+						md.appendMarkdown('\n\n' + translatedText)
+					}
+
+					return new vscode.Hover(md)
+				} catch (err) {
+					console.error('Hover translation failed:', err)
+					vscode.window.showErrorMessage(`Hover 翻译失败：${String(err)}`)
+				} finally {
+					isInsideHover = false
 				}
-
-				return new vscode.Hover(md)
-			} catch (err) {
-				console.error('Hover translation failed:', err)
-				vscode.window.showErrorMessage(`Hover 翻译失败：${String(err)}`)
-			} finally {
-				isInsideHover = false
 			}
-		}
-	})
+		})
 
-	/** 切换模式命令 */
-	const toggleMode = vscode.commands.registerCommand('hoverTranslator.toggleMode', () => {
-		showTranslated = !showTranslated
-		vscode.window.showInformationMessage(`🐾 Hover 模式已切换为：${showTranslated ? '显示译文' : '显示原文'}`)
-	})
+		/** 切换模式命令 */
+		const toggleMode = vscode.commands.registerCommand('hoverTranslator.toggleMode', () => {
+			showTranslated = !showTranslated
+			vscode.window.showInformationMessage(`🐾 Hover 模式已切换为：${showTranslated ? '显示译文' : '显示原文'}`)
+		})
 
-	/** 重新翻译命令 */
-	const retranslate = vscode.commands.registerCommand('hoverTranslator.retranslate', async (encodedText: string) => {
-		if (!encodedText) return
-		const originalText = Buffer.from(encodedText, 'base64').toString('utf-8')
-		await retranslateText(originalText)
-		vscode.window.showInformationMessage('🐾 已重新翻译当前 Hover 内容～')
-	})
+		/** 重新翻译命令 */
+		const retranslate = vscode.commands.registerCommand('hoverTranslator.retranslate', async (encodedText: string) => {
+			if (!encodedText) return
+			const originalText = Buffer.from(encodedText, 'base64').toString('utf-8')
+			await retranslateText(originalText)
+			vscode.window.showInformationMessage('🐾 已重新翻译当前 Hover 内容～')
+		})
 
-	context.subscriptions.push(hoverProvider, toggleMode, retranslate)
+		context.subscriptions.push(hoverProvider, toggleMode, retranslate)
+		console.log('🐾 hoverTranslator: 插件已启动')
+	}, startupDelay)
 }
 
 /**
