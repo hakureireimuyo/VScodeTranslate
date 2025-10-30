@@ -1,0 +1,72 @@
+{
+  "name": "doctranslate",
+  "displayName": "DocTranslate",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "文档悬浮翻译设置",
+      "properties": {
+        "hoverTranslator.baseURL": {
+          "type": "string",
+          "default": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "description": "大模型 API 接口地址，默认使用阿里百炼接口"
+        },
+        "hoverTranslator.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API 密钥"
+        },
+        "hoverTranslator.model": {
+          "type": "string",
+          "default": "qwen3-next-80b-a3b-instruct",
+          "description": "使用的大模型名称"
+        },
+        "hoverTranslator.promptTemplate": {
+          "type": "string",
+          "default": "请将以下文本翻译为中文：\\n${content}",
+          "description": "提示词模板，其中 ${content} 表示原文内容占位符"
+        }
+      }
+    },
+    "languages": [],
+    "commands": [
+      {
+        "command": "doctranslate.helloWorld",
+        "title": "Hello World"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "pnpm run compile && pnpm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.105.0",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.36.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
