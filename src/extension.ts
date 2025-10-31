@@ -90,8 +90,6 @@ export function activate(context: vscode.ExtensionContext) {
 					if (hasValidCache) {
 						if (showTranslated) {
 							md.appendMarkdown('\n\n' + cached!.text)
-						} else {
-							md.appendMarkdown('\n\n' + cached!.original)
 						}
 					} else {
 						// 未命中缓存：先显示占位（提示“正在翻译...”），并在后台发起翻译
