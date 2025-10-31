@@ -4,6 +4,7 @@
   "description": "在 VS Code 中悬停翻译选中的文本，支持阿里百炼、Moonshot、本地大模型等，完全自定义提示词与API地址。",
   "version": "0.0.2",
   "icon": "icon.png",
+  "publisher": "nihaozyj7",
   "repository": {
     "type": "git",
     "url": "https://github.com/nihaozyj7/DocTranslate"
@@ -56,8 +57,8 @@
         },
         "hoverTranslator.promptTemplate": {
           "type": "string",
-          "default": "请将以下文本翻译为中文：\\n${content}",
-          "markdownDescription": "提示词模板，其中 `${content}` 表示原文内容占位符, 可以使用自定义提示词来丰富和调整翻译效果"
+          "default": "翻译以下文本为中文，只回复翻译内容即可：\\n${content}",
+          "markdownDescription": "提示词模板，其中 `${content}` 表示原文内容占位符, 可自定义提示词来丰富和调整翻译效果"
         },
         "hoverTranslator.startupDelay": {
           "type": "number",
@@ -92,8 +93,5 @@
     "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.36.0",
     "typescript": "^5.9.3"
-  },
-  "dependencies": {
-    "node-fetch": "^3.3.2"
   }
 }
