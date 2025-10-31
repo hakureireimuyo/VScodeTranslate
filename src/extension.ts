@@ -241,7 +241,7 @@ async function translateText(text: string): Promise<string> {
 			body: JSON.stringify({
 				model,
 				messages: [
-					{ role: 'system', content: 'You are a translation assistant.' },
+					{ role: 'system', content: '你是一个编程语言专家，能准确识别声明语法结构并判断其复杂度' },
 					{ role: 'user', content: prompt }
 				]
 			})

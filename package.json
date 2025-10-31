@@ -57,7 +57,7 @@
         },
         "hoverTranslator.promptTemplate": {
           "type": "string",
-          "default": "翻译以下文本为中文，只回复翻译内容即可：\\n${content}",
+          "default": "简短解释一下：${content}",
           "markdownDescription": "提示词模板，其中 `${content}` 表示原文内容占位符, 可自定义提示词来丰富和调整翻译效果"
         },
         "hoverTranslator.startupDelay": {
