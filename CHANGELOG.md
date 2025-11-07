@@ -1,9 +1,7 @@
-# Change Log
+## [0.0.5] - 2025-11-08
+### Added
+- 增加了报错显示
 
-All notable changes to the "doctranslate" extension will be documented in this file.
-
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
-
-## [Unreleased]
-
-- Initial release
+## [0.0.1] - 2025-10-25
+### Added
+- 初始发布版本，支持 Hover 翻译。
