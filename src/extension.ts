@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 					md.isTrusted = true
 					const modeLabel = showTranslated ? '显示原文' : '显示译文'
 					md.appendMarkdown(
-						`✨ **悬浮文档翻译** &nbsp;&nbsp;👉&nbsp;&nbsp;[${modeLabel}](command:hoverTranslator.toggleMode)&nbsp;` +
+						`✨ **悬浮文档翻译** &nbsp;&nbsp;&nbsp;&nbsp;👉&nbsp;&nbsp;[${modeLabel}](command:hoverTranslator.toggleMode)&nbsp;|&nbsp;` +
 						`[重新翻译](command:hoverTranslator.retranslate?${encodeURIComponent(JSON.stringify([encodedText]))})`
 					)
 
@@ -137,9 +137,8 @@ export function activate(context: vscode.ExtensionContext) {
 		const retranslate = vscode.commands.registerCommand('hoverTranslator.retranslate', async (encodedText: string) => {
 			if (!encodedText) return
 			const originalText = Buffer.from(encodedText, 'base64').toString('utf-8')
-			await retranslateText(originalText)
-				; (vscode.commands.executeCommand('editor.action.showHover') as Promise<unknown>).catch(() => { })
-			vscode.window.showInformationMessage('🐾 已重新翻译当前 Hover 内容～')
+			await retranslateText(originalText);
+			(vscode.commands.executeCommand('editor.action.showHover') as Promise<unknown>).catch(() => { })
 		})
 
 		context.subscriptions.push(hoverProvider, toggleMode, retranslate)
@@ -221,6 +220,7 @@ async function translateText(text: string): Promise<string> {
 		if (!content) {
 			return '⚠️ **翻译服务未返回结果**，请检查模型或请求格式。'
 		}
+		vscode.window.showInformationMessage('🐾 翻译完成，请重新悬停以查看翻译结果～')
 		return content
 	} catch (err) {
 		return `❌ **翻译失败**：${String(err)}`
