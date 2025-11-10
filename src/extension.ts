@@ -82,6 +82,8 @@ export function activate(context: vscode.ExtensionContext) {
 						`[重新翻译](command:hoverTranslator.retranslate?${encodeURIComponent(JSON.stringify([encodedText]))})`
 					)
 
+					if (!showTranslated) return
+
 					// ✅ 有缓存则直接展示
 					if (hasValidCache) {
 						if (showTranslated) md.appendMarkdown('\n\n' + cached!.text)
