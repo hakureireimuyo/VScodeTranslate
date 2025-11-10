@@ -2,7 +2,7 @@
   "name": "doctranslate",
   "displayName": "DocTranslate",
   "description": "在 VS Code 中悬停翻译选中的文本，支持阿里百炼、Moonshot、本地大模型等，完全自定义提示词与API地址。",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "icon": "icon.png",
   "publisher": "nihaozyj7",
   "repository": {
