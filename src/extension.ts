@@ -76,13 +76,18 @@ export function activate(context: vscode.ExtensionContext) {
 					// 构建悬浮 Markdown
 					const md = new vscode.MarkdownString(undefined, true)
 					md.isTrusted = true
-					const modeLabel = showTranslated ? '显示原文' : '显示译文'
-					md.appendMarkdown(
-						`✨ **悬浮文档翻译** &nbsp;&nbsp;&nbsp;&nbsp;👉&nbsp;&nbsp;[${modeLabel}](command:hoverTranslator.toggleMode)&nbsp;|&nbsp;` +
-						`[重新翻译](command:hoverTranslator.retranslate?${encodeURIComponent(JSON.stringify([encodedText]))})`
-					)
 
-					if (!showTranslated) return
+					if (showTranslated) {
+						md.appendMarkdown(
+							`✨ **悬浮文档翻译** &nbsp;&nbsp;&nbsp;&nbsp;👉&nbsp;&nbsp;[禁用翻译](command:hoverTranslator.toggleMode)&nbsp;|&nbsp;` +
+							`[重新翻译](command:hoverTranslator.retranslate?${encodeURIComponent(JSON.stringify([encodedText]))})`
+						)
+					} else {
+						md.appendMarkdown(
+							`✨ **悬浮文档翻译** &nbsp;&nbsp;&nbsp;&nbsp;👉&nbsp;&nbsp;[开启翻译](command:hoverTranslator.toggleMode)`
+						)
+						return new vscode.Hover(md)
+					}
 
 					// ✅ 有缓存则直接展示
 					if (hasValidCache) {
