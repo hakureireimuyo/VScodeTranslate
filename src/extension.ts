@@ -18,7 +18,7 @@ interface CacheEntry {
 let translationCache = new Map<string, CacheEntry>()
 
 /** 当前显示模式：true 显示翻译，false 显示原文 */
-let showTranslated = true
+let showTranslated: boolean
 
 /** 全局 ExtensionContext，用于持久化缓存 */
 let globalContext: vscode.ExtensionContext
@@ -37,6 +37,8 @@ let translating = new Set<string>()
  */
 export function activate(context: vscode.ExtensionContext) {
 	globalContext = context
+
+	showTranslated = globalContext.globalState.get('showTranslated', true)
 
 	const config = vscode.workspace.getConfiguration('hoverTranslator')
 	const startupDelay = config.get<number>('startupDelay', 5000)
@@ -137,6 +139,7 @@ export function activate(context: vscode.ExtensionContext) {
 		/** 切换显示模式 */
 		const toggleMode = vscode.commands.registerCommand('hoverTranslator.toggleMode', () => {
 			showTranslated = !showTranslated
+			globalContext.globalState.update('showTranslated', showTranslated)
 			vscode.window.showInformationMessage(`🐾 Hover 模式已切换为：${showTranslated ? '显示译文' : '显示原文'}`)
 		})
 
