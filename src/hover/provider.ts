@@ -10,7 +10,9 @@ import { md5 } from '../translation/translator';
 export function createHoverProvider(context: PluginContext): vscode.HoverProvider {
     return {
         async provideHover(document: vscode.TextDocument, position: vscode.Position) {
-            if (context.state.isInsideHover) return;
+            if (context.state.isInsideHover) {
+                return;
+            }
             context.state.isInsideHover = true;
 
             try {
@@ -20,7 +22,9 @@ export function createHoverProvider(context: PluginContext): vscode.HoverProvide
                     position
                 );
 
-                if (!originalHovers || originalHovers.length === 0) return;
+                if (!originalHovers || originalHovers.length === 0) {
+                    return;
+                }
 
                 const originalText = extractHoverText(originalHovers);
                 const hash = md5(originalText);
@@ -101,7 +105,9 @@ function buildHeader(md: vscode.MarkdownString, showTranslated: boolean, encoded
  * 启动后台翻译
  */
 function startBackgroundTranslation(originalText: string, hash: string, context: PluginContext): void {
-    if (context.state.translating.has(hash)) return;
+    if (context.state.translating.has(hash)) {
+        return;
+    }
     
     context.state.translating.add(hash);
 
@@ -124,12 +130,11 @@ function startBackgroundTranslation(originalText: string, hash: string, context:
 /**
  * 触发悬浮提示刷新
  */
+/**
+ * 触发悬浮提示刷新
+ */
 function triggerHoverRefresh(): void {
     setTimeout(() => {
-        function triggerHoverRefresh(): void {
-            setTimeout(() => {
-                vscode.commands.executeCommand('editor.action.showHover').then(undefined, () => {});
-            }, 80);
-        }
+        vscode.commands.executeCommand('editor.action.showHover').then(undefined, () => {});
     }, 80);
 }

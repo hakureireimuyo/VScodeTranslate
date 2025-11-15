@@ -59,10 +59,14 @@ export function deleteCache(hash: string, state: PluginState): void {
  * 延迟保存缓存（防抖）
  */
 function saveCacheDebounced(state: PluginState): void {
-    if (saveTimeout) clearTimeout(saveTimeout);
-    
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
+    }
+        
     saveTimeout = setTimeout(async () => {
-        if (!state.globalContext) return;
+        if (!state.globalContext) {
+            return;
+        }
         
         await state.globalContext.globalState.update(
             'translationCache', 
