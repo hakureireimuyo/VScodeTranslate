@@ -1,25 +1,73 @@
-// src/hover-provider.ts
+// src/hover/HoverProvider.ts
 import * as vscode from 'vscode';
 import { PluginContext } from '../types';
-import { getCachedTranslation, setCachedTranslation } from '../cache';
+import { setCachedTranslation } from '../cache';
 import { TranslationServiceFactory } from '../translation/TranslationServiceFactory';
-import { md5 } from '../signature';
+import { DisplayMode } from '../constants';
+import { splitIntoParagraphs, generateParagraphTranslations } from './TextProcessor';
+import { buildMarkdownContent } from './MarkdownRenderer';
+
+// 为防抖函数添加类型声明
+declare global {
+    interface Function {
+        timeoutId?: NodeJS.Timeout;
+    }
+}
 
 /**
  * 创建悬浮提示提供者
  */
 export function createHoverProvider(context: PluginContext): vscode.HoverProvider {
-    // 初始化翻译服务工厂
     const translationFactory = TranslationServiceFactory.getInstance(context.globalContext!);
+    
+    // 初始化显示模式
+    if (!context.displayMode) {
+        context.displayMode = DisplayMode.SideBySide;
+    }
+    
+    // 添加一个标志来防止递归调用
+    let isProcessing = false;
+    
+    console.log('🐾 HoverProvider: 创建悬浮提示提供者');
     
     return {
         async provideHover(document: vscode.TextDocument, position: vscode.Position) {
-            if (context.state.isInsideHover) {
+            // 防止递归调用
+            if (isProcessing) {
+                console.log('🐾 HoverProvider: 检测到递归调用，跳过处理');
                 return;
             }
-            context.state.isInsideHover = true;
-
+            
+            isProcessing = true;
+            
             try {
+                console.log(`🐾 HoverProvider: 接收到悬浮提示请求`, {
+                    fileName: document.fileName,
+                    position: `${position.line}:${position.character}`
+                });
+                
+                const config = vscode.workspace.getConfiguration('VScodeTranslator');
+                const isEnabled = config.get<boolean>('enabled', true);
+                console.log(`🐾 HoverProvider: 当前插件启用状态: ${isEnabled}`);
+
+                // 如果未启用翻译，直接返回原始hover内容
+                if (!isEnabled) {
+                    console.log('🐾 HoverProvider: 插件未启用，返回原始悬浮内容');
+                    const originalHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+                        'vscode.executeHoverProvider',
+                        document.uri,
+                        position
+                    );
+                    
+                    if (originalHovers && originalHovers.length > 0) {
+                        console.log('🐾 HoverProvider: 成功获取原始悬浮内容');
+                        return originalHovers[0];
+                    }
+                    console.log('🐾 HoverProvider: 未获取到原始悬浮内容');
+                    return;
+                }
+
+                console.log('🐾 HoverProvider: 获取原始悬浮内容');
                 const originalHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
                     'vscode.executeHoverProvider',
                     document.uri,
@@ -27,21 +75,38 @@ export function createHoverProvider(context: PluginContext): vscode.HoverProvide
                 );
 
                 if (!originalHovers || originalHovers.length === 0) {
+                    console.log('🐾 HoverProvider: 未获取到原始悬浮内容，返回空');
                     return;
                 }
 
                 const originalText = extractHoverText(originalHovers);
-                const hash = md5(originalText);
-                const encodedText = Buffer.from(originalText, 'utf-8').toString('base64');
+                console.log(`🐾 HoverProvider: 提取原始文本，长度: ${originalText.length}`);
+                
+                // 按自然段分割文本
+                const paragraphs = splitIntoParagraphs(originalText);
+                console.log(`🐾 HoverProvider: 分割为 ${paragraphs.length} 个段落`);
+                
+                // 为每个段落生成唯一标识和翻译状态
+                const paragraphTranslations = generateParagraphTranslations(paragraphs, context.state);
 
-                const md = buildMarkdownContent(originalText, hash, encodedText, context, translationFactory);
+                const encodedText = Buffer.from(originalText, 'utf-8').toString('base64');
+                console.log(`🐾 HoverProvider: 构建Markdown内容`);
+                
+                const md = await buildMarkdownContent(
+                    paragraphTranslations, 
+                    encodedText, 
+                    context, 
+                    translationFactory
+                );
+                
+                console.log('🐾 HoverProvider: 成功构建悬浮内容');
                 return new vscode.Hover(md);
 
             } catch (err) {
-                console.error('Hover translation failed:', err);
+                console.error('🐾 HoverProvider: 悬浮翻译失败', err);
                 vscode.window.showErrorMessage(`Hover 翻译失败：${String(err)}`);
             } finally {
-                context.state.isInsideHover = false;
+                isProcessing = false;
             }
         }
     };
@@ -56,129 +121,4 @@ function extractHoverText(hovers: vscode.Hover[]): string {
             (c as vscode.MarkdownString).value ?? String(c)
         ).join('\n'))
         .join('\n\n');
-}
-
-/**
- * 构建Markdown内容
- */
-function buildMarkdownContent(
-    originalText: string, 
-    hash: string, 
-    encodedText: string, 
-    context: PluginContext,
-    factory: TranslationServiceFactory
-): vscode.MarkdownString {
-    const md = new vscode.MarkdownString(undefined, true);
-    md.isTrusted = true;
-
-    // 构建标题和操作按钮
-    buildHeader(md, context.state.showTranslated, encodedText);
-
-    if (!context.state.showTranslated) {
-        return md;
-    }
-
-    // 检查缓存
-    const cachedText = getCachedTranslation(hash, context.state);
-    if (cachedText) {
-        md.appendMarkdown('\n\n' + cachedText);
-    } else {
-        md.appendMarkdown('\n\n⌛ **翻译中，请稍候...**');
-        startBackgroundTranslation(originalText, hash, context, factory);
-    }
-
-    return md;
-}
-
-/**
- * 构建标题和操作按钮
- */
-function buildHeader(md: vscode.MarkdownString, showTranslated: boolean, encodedText: string): void {
-    if (showTranslated) {
-        md.appendMarkdown(
-            `✨ **悬浮文档翻译** &nbsp;&nbsp;&nbsp;&nbsp;👉&nbsp;&nbsp;[禁用翻译](command:hoverTranslator.toggleMode)&nbsp;|&nbsp;` +
-            `[重新翻译](command:hoverTranslator.retranslate?${encodeURIComponent(JSON.stringify([encodedText]))})`
-        );
-    } else {
-        md.appendMarkdown(
-            `✨ **悬浮文档翻译** &nbsp;&nbsp;&nbsp;&nbsp;👉&nbsp;&nbsp;[开启翻译](command:hoverTranslator.toggleMode)`
-        );
-    }
-}
-
-/**
- * 启动后台翻译 - 使用工厂模式
- */
-function startBackgroundTranslation(
-    originalText: string, 
-    hash: string, 
-    context: PluginContext,
-    factory: TranslationServiceFactory
-): void {
-    if (context.state.translating.has(hash)) {
-        return;
-    }
-    
-    context.state.translating.add(hash);
-
-    // 使用工厂模式进行翻译
-    translateWithFactory(originalText, hash, context, factory)
-        .then(translated => {
-            context.state.translating.delete(hash);
-            setCachedTranslation(hash, originalText, translated, context.state);
-            triggerHoverRefresh();
-        })
-        .catch(err => {
-            context.state.translating.delete(hash);
-            console.error('Background translate failed:', err);
-            
-            const errorText = `❌ **翻译异常**：${String(err.message || err)}`;
-            setCachedTranslation(hash, originalText, errorText, context.state);
-            triggerHoverRefresh();
-        });
-}
-
-/**
- * 使用工厂模式进行翻译
- */
-async function translateWithFactory(
-    originalText: string,
-    hash: string,
-    context: PluginContext,
-    factory: TranslationServiceFactory
-): Promise<string> {
-    try {
-        const config = context.config;
-        
-        // 构建翻译请求
-        const request = {
-            originalText: originalText
-        };
-
-        // 使用工厂进行翻译（带降级机制）
-        const fallbackServices = factory.getAvailableServices()
-            .filter(service => service !== config.serviceProvider)
-            .slice(0, 2); // 最多使用2个备用服务
-
-        const result = await factory.translateWithFallback(
-            request,
-            config.serviceProvider,
-            fallbackServices,
-            config
-        );
-
-        return result.translatedText;
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`翻译服务不可用: ${errorMessage}`);
-    }
-}
-
-/**
- * 触发悬浮提示刷新
- */
-function triggerHoverRefresh(): void {
-    setTimeout(() => {
-        vscode.commands.executeCommand('editor.action.showHover').then(undefined, () => {});
-    }, 80);
 }

@@ -2,8 +2,8 @@
 import * as vscode from 'vscode';
 import { PluginContext } from '../types';
 import { TranslationServiceFactory } from '../translation/TranslationServiceFactory';
-import { setCachedTranslation, getCachedTranslation } from '../cache';
 import { md5 } from '../signature';
+import {DisplayMode} from "../constants";
 
 /**
  * 注册翻译相关命令
@@ -12,17 +12,10 @@ export function registerTranslationCommands(context: PluginContext): vscode.Disp
     const factory = TranslationServiceFactory.getInstance(context.globalContext!);
     
     return [
-        // 切换翻译模式命令
-        vscode.commands.registerCommand('hoverTranslator.toggleMode', () => {
-            context.state.showTranslated = !context.state.showTranslated;
-            vscode.window.showInformationMessage(
-                `悬浮翻译已${context.state.showTranslated ? '开启' : '关闭'}`
-            );
-            triggerHoverRefresh();
-        }),
+        // 移除了重复的 'VScodeTranslator.toggleMode' 命令注册
 
         // 重新翻译命令
-        vscode.commands.registerCommand('hoverTranslator.retranslate', async (encodedText: string) => {
+        vscode.commands.registerCommand('VScodeTranslator.retranslate', async (encodedText: string) => {
             try {
                 const originalText = Buffer.from(encodedText, 'base64').toString('utf-8');
                 const hash = md5(originalText);
@@ -44,7 +37,7 @@ export function registerTranslationCommands(context: PluginContext): vscode.Disp
         }),
 
         // 手动翻译选中文本命令
-        vscode.commands.registerCommand('hoverTranslator.translateSelection', async () => {
+        vscode.commands.registerCommand('VScodeTranslator.translateSelection', async () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 vscode.window.showWarningMessage('没有活动的文本编辑器');
@@ -63,8 +56,22 @@ export function registerTranslationCommands(context: PluginContext): vscode.Disp
         }),
 
         // 切换翻译服务命令
-        vscode.commands.registerCommand('hoverTranslator.switchService', async () => {
+        vscode.commands.registerCommand('VScodeTranslator.switchService', async () => {
             await switchTranslationService(context, factory);
+        }),
+        
+        vscode.commands.registerCommand('VScodeTranslator.switchDisplayMode', async (mode: DisplayMode) => {
+            context.displayMode = mode;
+            vscode.window.showInformationMessage(`已切换到${getDisplayModeName(mode)}`);
+            triggerHoverRefresh();
+        }),
+        
+        // 重新翻译单个段落命令
+        vscode.commands.registerCommand('VScodeTranslator.retranslateParagraph', async (paragraphHash: string) => {
+            // 清除指定段落的缓存
+            context.state.translationCache.delete(paragraphHash);
+            context.state.translating.delete(paragraphHash);
+            triggerHoverRefresh();
         })
     ];
 }
@@ -89,13 +96,11 @@ async function executeManualTranslation(
             progress.report({ increment: 0 });
             
             const request = { originalText: text };
-            const fallbackServices = factory.getAvailableServices()
-                .filter(service => service !== config.serviceProvider);
-
-            const result = await factory.translateWithFallback(
+            
+            // 只使用当前选择的服务，不进行降级
+            const result = await factory.translate(
                 request,
-                config.serviceProvider,
-                fallbackServices,
+                config.serviceProvider, // 只使用当前选择的服务
                 config
             );
 
@@ -159,26 +164,48 @@ async function switchTranslationService(
     const availableServices = factory.getAvailableServices();
     const currentService = context.config.serviceProvider;
     
+    console.log('🐾 Available services:', availableServices);
+    console.log('🐾 Current service before switch:', currentService);
+    
     const selectedService = await vscode.window.showQuickPick(availableServices, {
         placeHolder: `当前服务: ${currentService}`,
         title: '选择翻译服务'
     });
     
     if (selectedService) {
-        context.config.serviceProvider = selectedService;
+        console.log('🐾 Selected service:', selectedService);
         
-        // 更新配置
-        const configuration = vscode.workspace.getConfiguration('hoverTranslator');
-        await configuration.update('serviceProvider', selectedService, true);
-        
-        vscode.window.showInformationMessage(`已切换到 ${selectedService} 翻译服务`);
-        
-        // 清除缓存，确保使用新服务重新翻译
-        context.state.translationCache.clear();
-        context.state.translating.clear();
-        
-        triggerHoverRefresh();
+        if (selectedService !== currentService) {
+            // 更新工作区配置 - 这是关键步骤
+            const configuration = vscode.workspace.getConfiguration('VScodeTranslator');
+            await configuration.update('serviceProvider', selectedService, vscode.ConfigurationTarget.Global);
+            
+            // 立即更新上下文中的配置
+            context.config.serviceProvider = selectedService;
+            
+            console.log('🐾 Service updated in config to:', selectedService);
+            
+            vscode.window.showInformationMessage(`已切换到 ${selectedService} 翻译服务`);
+            
+            // 清除缓存，确保使用新服务重新翻译
+            context.state.translationCache.clear();
+            context.state.translating.clear();
+            
+            triggerHoverRefresh();
+        } else {
+            vscode.window.showInformationMessage(`当前已在使用 ${selectedService} 翻译服务`);
+        }
     }
+}
+
+
+// 显示模式名称映射
+function getDisplayModeName(mode: DisplayMode): string {
+    const names = {
+        [DisplayMode.SideBySide]: '对照模式',
+        [DisplayMode.TranslatedOnly]: '仅译文模式'
+    };
+    return names[mode] || '未知模式';
 }
 
 /**

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { PluginContext } from '../types';
 
 export function registerToggleModeCommand(context: PluginContext): vscode.Disposable {
-    return vscode.commands.registerCommand('hoverTranslator.toggleMode', () => {
+    return vscode.commands.registerCommand('VScodeTranslator.toggleMode', () => {
         context.state.showTranslated = !context.state.showTranslated;
         
         if (context.state.globalContext) {

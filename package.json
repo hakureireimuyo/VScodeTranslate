@@ -40,61 +40,76 @@
     "configuration": {
       "title": "文档悬浮翻译设置",
       "properties": {
-        "hoverTranslator.serviceProvider": {
+        "VScodeTranslator.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否启用悬停翻译功能"
+        },
+        "VScodeTranslator.displayMode": {
+          "type": "string",
+          "default": "sidebyside",
+          "enum": [
+            "sidebyside",
+            "translatedonly"
+          ],
+          "enumDescriptions": [
+            "对照显示原文与译文",
+            "仅显示译文"
+          ],
+          "description": "选择翻译内容的显示方式"
+        },
+        "VScodeTranslator.serviceProvider": {
           "type": "string",
           "default": "aliyun",
           "description": "选择翻译服务提供商",
           "enum": [
             "aliyun",
-            "moonshot", 
+            "baidu",
             "openai",
+            "zhipu",
             "local"
           ],
           "enumItemLabels": [
             "阿里百炼",
-            "Moonshot",
+            "百度翻译",
             "OpenAI 兼容接口",
+            "质谱清言",
             "本地大模型"
           ],
           "enumDescriptions": [
-            "使用阿里云百炼翻译服务",
-            "使用 Moonshot 翻译服务",
+            "使用阿里云翻译服务",
+            "使用百度翻译服务",
             "使用任何兼容 OpenAI API 的翻译服务",
+            "使用质谱清言大模型服务",
             "使用本地部署的大模型服务"
           ],
           "order": 1
         },
-        "hoverTranslator.baseURL": {
+        "VScodeTranslator.url": {
           "type": "string",
           "default": "",
-          "description": "大模型 API 接口地址。如果留空，将根据选择的服务提供商使用默认地址。实际调用地址：${baseURL}/chat/completions",
+          "description": "大模型 API 接口地址。一般留空，将根据选择的服务提供商使用默认地址.如果服务商修改了接口地址，可以在此处进行覆盖,或者使用本地服务或自建服务时可以使用自定义接口地址",
           "order": 2
         },
-        "hoverTranslator.apiKey": {
+        "VScodeTranslator.apiKey": {
           "type": "string",
           "default": "",
           "description": "API 密钥",
           "order": 3
         },
-        "hoverTranslator.secretKey": {
+        "VScodeTranslator.secretKey": {
           "type": "string",
           "default": "",
           "description": "某些服务商可能需要额外的密钥（如 Secret Key）",
           "order": 4
         },
-        "hoverTranslator.model": {
+        "VScodeTranslator.model": {
           "type": "string",
           "default": "",
-          "description": "大模型名称。如果留空，将使用所选服务商的推荐模型",
+          "description": "大模型名称。如果留空，将使用所选服务商的推荐模型,一般为免费或者价格最低的模型.",
           "order": 5
         },
-        "hoverTranslator.promptTemplate": {
-          "type": "string",
-          "default": "简短解释一下：${content}",
-          "markdownDescription": "提示词模板，其中 `${content}` 表示原文内容占位符, 可自定义提示词来丰富和调整翻译效果",
-          "order": 6
-        },
-        "hoverTranslator.startupDelay": {
+        "VScodeTranslator.startupDelay": {
           "type": "number",
           "default": 3000,
           "description": "插件首次启动延迟时间（毫秒），该设置确保翻译内容始终在悬浮提示的最顶部显示，如果发现翻译结果在底部，则适当调整延迟时间",
@@ -109,7 +124,8 @@
     "watch": "tsc -watch -p ./",
     "pretest": "pnpm run compile && pnpm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "debug:text": "pnpm run compile && node out/debug/textProcessorDebug.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -120,6 +136,8 @@
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.36.0",
+    "glob": "^11.0.3",
+    "mocha": "^11.7.5",
     "typescript": "^5.9.3"
   }
 }

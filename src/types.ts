@@ -1,4 +1,4 @@
-/// src/types.ts
+// src/types.ts
 import * as vscode from 'vscode';
 
 /** 缓存条目接口 */
@@ -35,13 +35,18 @@ export interface ITranslationService {
 /** 简化翻译配置 - 移除提示词模板等复杂配置 */
 export interface TranslationConfig {
     serviceProvider: string;
-    baseURL: string;
+    url: string;
     apiKey: string;
     secretKey?: string;
     model?: string;
     timeout?: number;
 }
 
+/** 全局配置接口 */
+export interface GlobalConfig {
+    enabled: boolean;
+    displayMode: string;
+}
 
 /** 插件全局状态 */
 export interface PluginState {
@@ -52,10 +57,25 @@ export interface PluginState {
     globalContext?: vscode.ExtensionContext;
 }
 
+import { DisplayMode } from './constants';
+import { Semaphore } from './semaphore';
+
 /** 模块化后的插件上下文 */
 export interface PluginContext {
     state: PluginState;
     config: TranslationConfig;
+    displayMode: DisplayMode;
     globalContext?: vscode.ExtensionContext;
+    translationSemaphore?: Semaphore;
 }
 
+/**
+ * 段落翻译结果接口
+ */
+export interface ParagraphTranslation {
+    original: string;
+    translated?: string;
+    hash: string;
+    isTranslating: boolean;
+    error?: string;
+}

@@ -22,8 +22,8 @@ export abstract class BaseTranslationService implements ITranslationService {
         return `你是一名专业的代码文档翻译专家，请将用户提供的文本准确、流畅地翻译成中文。翻译要求：
 1. 保持专业术语的准确性
 2. 符合中文表达习惯
-3. 保持原文的语气和风格
-4. 如果原文是代码或技术术语，确保技术准确性
+3. 保持原文的语气和风格以及格式,标点符号不用进行转换
+4. 如果原文是代码或技术术语，则保持原文
 5. 代码块内的内容保持不变
 
 只需返回翻译结果，不要添加任何解释或额外内容。`;
@@ -64,7 +64,25 @@ export abstract class BaseTranslationService implements ITranslationService {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // 尝试解析错误响应体以获取详细错误信息
+                let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorData = await response.json();
+                    if (typeof errorData === 'object' && errorData !== null) {
+                        if ('error_msg' in errorData && typeof errorData.error_msg === 'string') {
+                            errorMessage = `HTTP ${response.status}: ${errorData.error_msg}`;
+                        } else if ('message' in errorData && typeof errorData.message === 'string') {
+                            errorMessage = `HTTP ${response.status}: ${errorData.message}`;
+                        }
+                    }
+                } catch (e) {
+                    // 如果无法解析JSON，则使用默认错误消息
+                    const errorText = await response.text().catch(() => '');
+                    if (errorText) {
+                        errorMessage = `HTTP ${response.status}: ${errorText}`;
+                    }
+                }
+                throw new Error(errorMessage);
             }
 
             return await response.json();

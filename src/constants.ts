@@ -12,8 +12,8 @@ export const DEFAULT_TIMEOUT = 10000;
 
 /** 命令标识符 */
 export const COMMANDS = {
-    TOGGLE_MODE: 'hoverTranslator.toggleMode',
-    RETRANSLATE: 'hoverTranslator.retranslate'
+    TOGGLE_MODE: 'VScodeTranslator.toggleMode',
+    RETRANSLATE: 'VScodeTranslator.retranslate'
 } as const;
 
 /** 配置项键名 */
@@ -24,3 +24,9 @@ export const CONFIG_KEYS = {
     TIMEOUT: 'timeout',
     STARTUP_DELAY: 'startupDelay'
 } as const;
+
+// 显示模式枚举
+export enum DisplayMode {
+    TranslatedOnly = 'translatedOnly',      // 只显示译文
+    SideBySide = 'sideBySide',              // 对照显示
+}
