@@ -2,7 +2,7 @@
 
 **VScodeTranslate** 基于 [DOCTranslate](https://github.com/nihaozyj7/DocTranslate) 创建,旨在兼容更多接口以及服务。并提升翻译体验.
 
-正在开发中...
+当前项目正在开发中...
 
 ## 特性
 
