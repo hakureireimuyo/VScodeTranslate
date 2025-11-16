@@ -1,13 +1,17 @@
+// src/hover-provider.ts
 import * as vscode from 'vscode';
 import { PluginContext } from '../types';
 import { getCachedTranslation, setCachedTranslation } from '../cache';
-import { translateText } from '../translation/translator';
-import { md5 } from '../translation/translator';
+import { TranslationServiceFactory } from '../translation/TranslationServiceFactory';
+import { md5 } from '../signature';
 
 /**
  * 创建悬浮提示提供者
  */
 export function createHoverProvider(context: PluginContext): vscode.HoverProvider {
+    // 初始化翻译服务工厂
+    const translationFactory = TranslationServiceFactory.getInstance(context.globalContext!);
+    
     return {
         async provideHover(document: vscode.TextDocument, position: vscode.Position) {
             if (context.state.isInsideHover) {
@@ -30,7 +34,7 @@ export function createHoverProvider(context: PluginContext): vscode.HoverProvide
                 const hash = md5(originalText);
                 const encodedText = Buffer.from(originalText, 'utf-8').toString('base64');
 
-                const md = buildMarkdownContent(originalText, hash, encodedText, context);
+                const md = buildMarkdownContent(originalText, hash, encodedText, context, translationFactory);
                 return new vscode.Hover(md);
 
             } catch (err) {
@@ -61,7 +65,8 @@ function buildMarkdownContent(
     originalText: string, 
     hash: string, 
     encodedText: string, 
-    context: PluginContext
+    context: PluginContext,
+    factory: TranslationServiceFactory
 ): vscode.MarkdownString {
     const md = new vscode.MarkdownString(undefined, true);
     md.isTrusted = true;
@@ -79,7 +84,7 @@ function buildMarkdownContent(
         md.appendMarkdown('\n\n' + cachedText);
     } else {
         md.appendMarkdown('\n\n⌛ **翻译中，请稍候...**');
-        startBackgroundTranslation(originalText, hash, context);
+        startBackgroundTranslation(originalText, hash, context, factory);
     }
 
     return md;
@@ -102,16 +107,22 @@ function buildHeader(md: vscode.MarkdownString, showTranslated: boolean, encoded
 }
 
 /**
- * 启动后台翻译
+ * 启动后台翻译 - 使用工厂模式
  */
-function startBackgroundTranslation(originalText: string, hash: string, context: PluginContext): void {
+function startBackgroundTranslation(
+    originalText: string, 
+    hash: string, 
+    context: PluginContext,
+    factory: TranslationServiceFactory
+): void {
     if (context.state.translating.has(hash)) {
         return;
     }
     
     context.state.translating.add(hash);
 
-    translateText(originalText, context)
+    // 使用工厂模式进行翻译
+    translateWithFactory(originalText, hash, context, factory)
         .then(translated => {
             context.state.translating.delete(hash);
             setCachedTranslation(hash, originalText, translated, context.state);
@@ -121,15 +132,48 @@ function startBackgroundTranslation(originalText: string, hash: string, context:
             context.state.translating.delete(hash);
             console.error('Background translate failed:', err);
             
-            const errorText = `❌ **翻译异常**：${String(err)}`;
+            const errorText = `❌ **翻译异常**：${String(err.message || err)}`;
             setCachedTranslation(hash, originalText, errorText, context.state);
             triggerHoverRefresh();
         });
 }
 
 /**
- * 触发悬浮提示刷新
+ * 使用工厂模式进行翻译
  */
+async function translateWithFactory(
+    originalText: string,
+    hash: string,
+    context: PluginContext,
+    factory: TranslationServiceFactory
+): Promise<string> {
+    try {
+        const config = context.config;
+        
+        // 构建翻译请求
+        const request = {
+            originalText: originalText
+        };
+
+        // 使用工厂进行翻译（带降级机制）
+        const fallbackServices = factory.getAvailableServices()
+            .filter(service => service !== config.serviceProvider)
+            .slice(0, 2); // 最多使用2个备用服务
+
+        const result = await factory.translateWithFallback(
+            request,
+            config.serviceProvider,
+            fallbackServices,
+            config
+        );
+
+        return result.translatedText;
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`翻译服务不可用: ${errorMessage}`);
+    }
+}
+
 /**
  * 触发悬浮提示刷新
  */

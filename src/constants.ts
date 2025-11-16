@@ -7,6 +7,9 @@ export const DEFAULT_STARTUP_DELAY = 5000;
 /** 防抖延迟时间 */
 export const DEBOUNCE_DELAY = 500;
 
+/** 超时时间（默认10秒） */
+export const DEFAULT_TIMEOUT = 10000;
+
 /** 命令标识符 */
 export const COMMANDS = {
     TOGGLE_MODE: 'hoverTranslator.toggleMode',
@@ -18,6 +21,6 @@ export const CONFIG_KEYS = {
     BASE_URL: 'baseURL',
     API_KEY: 'apiKey',
     MODEL: 'model',
-    PROMPT_TEMPLATE: 'promptTemplate',
+    TIMEOUT: 'timeout',
     STARTUP_DELAY: 'startupDelay'
 } as const;
