@@ -45,6 +45,11 @@
           "default": true,
           "description": "是否启用悬停翻译功能"
         },
+        "VScodeTranslator.useWebviewPanel": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否使用独立的Webview面板显示翻译结果"
+        },
         "VScodeTranslator.displayMode": {
           "type": "string",
           "default": "sidebyside",
@@ -116,7 +121,12 @@
           "order": 7
         }
       }
-    }
+    },
+    "hoverProviders": [
+      {
+        "access": "public"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
@@ -130,6 +140,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/sqlite3": "^5.1.0",
     "@types/vscode": "^1.105.0",
     "@typescript-eslint/eslint-plugin": "^8.45.0",
     "@typescript-eslint/parser": "^8.45.0",
