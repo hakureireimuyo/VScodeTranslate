@@ -1,7 +1,7 @@
-import { ITranslationService, TranslationRequest, TranslationResponse, TranslationConfig } from '../types';
+import { TranslationService, TranslationRequest, TranslationResponse, TranslationConfig } from '../types';
 import * as vscode from 'vscode';
 
-export abstract class BaseTranslationService implements ITranslationService {
+export abstract class BaseTranslationService implements TranslationService {
     public abstract readonly name: string;
     
     protected config: TranslationConfig;

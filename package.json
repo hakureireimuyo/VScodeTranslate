@@ -120,7 +120,29 @@
           "description": "插件首次启动延迟时间（毫秒），该设置确保翻译内容始终在悬浮提示的最顶部显示，如果发现翻译结果在底部，则适当调整延迟时间",
           "order": 7
         }
-      }
+      },
+      "commands": [
+        {
+          "command": "VScodeTranslator.setConfig",
+          "title": "VSCode Translator: Set Config"
+        },
+        {
+          "command": "VScodeTranslator.getConfig",
+          "title": "VSCode Translator: Get Config"
+        },
+        {
+          "command": "VScodeTranslator.switchService",
+          "title": "VSCode Translator: Switch Service Provider"
+        },
+        {
+          "command": "VScodeTranslator.showCurrentConfig",
+          "title": "VSCode Translator: Show Current Config"
+        },
+        {
+          "command": "VScodeTranslator.showAllDatabaseConfigs",
+          "title": "VSCode Translator: Show All Database Configs"
+        }
+      ] 
     },
     "hoverProviders": [
       {
@@ -128,6 +150,7 @@
       }
     ]
   },
+
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
     "compile": "tsc -p ./",

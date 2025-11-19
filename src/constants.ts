@@ -30,3 +30,4 @@ export enum DisplayMode {
     TranslatedOnly = 'translatedOnly',      // 只显示译文
     SideBySide = 'sideBySide',              // 对照显示
 }
+
