@@ -89,7 +89,7 @@ export class TranslationServiceFactory {
             const serviceConfig = { ...config, serviceProvider: serviceName };
             const service = this.createService(serviceConfig);
             
-            // console.log(`🐾 TranslationServiceFactory: 调用服务翻译方法 - ${serviceName}`);
+            console.log(`🐾 TranslationServiceFactory: 调用服务翻译方法 - ${serviceName}`);
             const result = await service.translate(request);
             
             // console.log(`🐾 TranslationServiceFactory: 翻译完成 - ${serviceName}`, {

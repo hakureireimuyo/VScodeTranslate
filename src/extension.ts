@@ -88,7 +88,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // 初始化逻辑控制器
     console.log('[VSCode Translator] 开始初始化逻辑控制器...');
-    logicController = new LogicController(taskManager, translationDB);
+    logicController = new LogicController(taskManager, translationDB,context);
     console.log('[VSCode Translator] 逻辑控制器初始化成功');
 
     // 注册配置相关命令

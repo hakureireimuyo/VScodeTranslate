@@ -101,148 +101,167 @@ export class ConfigManager implements vscode.Disposable {
   /**
    * 处理配置变化（核心改进）
    */
-  private async handleConfigChange(): Promise<void> {
-    // 防止循环触发
-    if (this.isUpdatingVSCodeConfig) {
-      console.log('[VSCode Translator][ConfigManager] 忽略由自身触发的配置变更');
-      return;
-    }
-    
-    console.log('[VSCode Translator][ConfigManager] 开始处理配置变更');
-    
-    try {
-      const config = vscode.workspace.getConfiguration('VScodeTranslator');
-      const newServiceProvider = config.get<string>('serviceProvider', 'openai');
-      
-      console.log(`[VSCode Translator][ConfigManager] 当前服务: ${this.activeConfig.serviceProvider}, 新服务: ${newServiceProvider}`);
-      
-      if (this.activeConfig.serviceProvider !== newServiceProvider) {
-        // 服务提供商切换
-        await this.switchService(newServiceProvider);
-      } else {
-        // 同一服务提供商，仅更新配置参数
-        await this.updateServiceParameters(config);
+    private async handleConfigChange(): Promise<void> {
+      // 防止循环触发
+      if (this.isUpdatingVSCodeConfig) {
+          console.log('[VSCode Translator][ConfigManager] 忽略由自身触发的配置变更');
+          return;
       }
-    } catch (error) {
-      console.error('[VSCode Translator][ConfigManager] 处理配置变更时出错:', error);
-    }
+      
+      console.log('[VSCode Translator][ConfigManager] 开始处理配置变更');
+      
+      try {
+          const config = vscode.workspace.getConfiguration('VScodeTranslator');
+          const newServiceProvider = config.get<string>('serviceProvider', 'openai');
+          const newUrl = config.get<string>('url', '');
+          const newApiKey = config.get<string>('apiKey', '');
+          const newModel = config.get<string>('model', '');
+          const newSecretKey = config.get<string>('secretKey', '');
+          
+          console.log(`[VSCode Translator][ConfigManager] 当前服务: ${this.activeConfig.serviceProvider}, 新服务: ${newServiceProvider}`);
+          
+          // 关键改进：检查是否是服务提供商切换
+          if (this.activeConfig.serviceProvider !== newServiceProvider) {
+              // 服务提供商切换 - 需要完整切换流程
+              await this.switchService(newServiceProvider);
+          } else {
+              // 同一服务提供商，检查参数是否有实际变化
+              const hasParameterChanges = 
+                  newUrl !== this.activeConfig.url ||
+                  newApiKey !== this.activeConfig.apiKey ||
+                  newModel !== this.activeConfig.model ||
+                  newSecretKey !== this.activeConfig.secretKey;
+              
+              if (hasParameterChanges) {
+                  console.log('[VSCode Translator][ConfigManager] 检测到服务参数变化，开始更新');
+                  await this.updateServiceParameters(config);
+              } else {
+                  console.log('[VSCode Translator][ConfigManager] 配置无实际变化，跳过更新');
+                  // 即使无变化，也要确保VSCode配置与内存配置同步
+                  if (!this.isConfigInSyncWithVSCode()) {
+                      console.log('[VSCode Translator][ConfigManager] 检测到配置不同步，进行同步');
+                      await this.syncToVSCode();
+                  }
+              }
+          }
+      } catch (error) {
+          console.error('[VSCode Translator][ConfigManager] 处理配置变更时出错:', error);
+      }
+  }
+
+  /**
+   * 检查VSCode设置是否与内存配置完全同步
+   */
+  private isConfigInSyncWithVSCode(): boolean {
+      const vsConfig = vscode.workspace.getConfiguration('VScodeTranslator');
+      
+      const isSync = 
+          vsConfig.get('serviceProvider') === this.activeConfig.serviceProvider &&
+          vsConfig.get('url') === (this.activeConfig.url || '') &&
+          vsConfig.get('apiKey') === (this.activeConfig.apiKey || '') &&
+          vsConfig.get('model') === (this.activeConfig.model || '') &&
+          vsConfig.get('secretKey') === (this.activeConfig.secretKey || '');
+      
+      console.log('[VSCode Translator][ConfigManager] 配置同步检查:', {
+          isSync,
+          vsService: vsConfig.get('serviceProvider'),
+          activeService: this.activeConfig.serviceProvider,
+          vsUrl: vsConfig.get('url') ? '***' : '空',
+          activeUrl: this.activeConfig.url ? '***' : '空'
+      });
+      
+      return isSync;
+  }
+
+  /**
+   * 切换服务提供商（改进版本）
+   */
+  public async switchService(serviceProvider: string): Promise<void> {
+      console.log(`[VSCode Translator][ConfigManager] 开始切换服务提供商: ${this.activeConfig.serviceProvider} -> ${serviceProvider}`);
+      
+      // 设置防循环标志
+      this.isUpdatingVSCodeConfig = true;
+      
+      try {
+          // 1. 保存当前服务配置到数据库
+          await this.saveActiveConfig();
+          
+          // 2. 更新数据库中的活动服务提供商
+          await this.configDb.setActiveServiceProvider(serviceProvider);
+          
+          // 3. 从数据库加载新服务提供商的配置
+          const serviceConfig = await this.configDb.getServiceConfig(serviceProvider);
+          
+          if (serviceConfig) {
+              this.activeConfig = {
+                  serviceProvider: serviceConfig.serviceProvider,
+                  url: serviceConfig.url || '',
+                  apiKey: serviceConfig.apiKey || '',
+                  secretKey: serviceConfig.secretKey || '',
+                  model: serviceConfig.model || ''
+              };
+          } else {
+              this.activeConfig = this.getDefaultConfig(serviceProvider);
+          }
+          
+          // 4. 同步到VSCode设置（这会触发配置变更事件，但会被防循环标志拦截）
+          await this.syncToVSCode();
+          
+          // 5. 触发配置变更事件通知其他组件
+          this._onConfigChange.fire();
+          
+          console.log('[VSCode Translator][ConfigManager] 服务切换完成');
+          
+      } catch (error) {
+          console.error(`[VSCode Translator][ConfigManager] 切换服务提供商失败: ${serviceProvider}`, error);
+          throw error;
+      } finally {
+          // 使用setTimeout确保防循环标志在事件处理完成后才重置
+          setTimeout(() => {
+              this.isUpdatingVSCodeConfig = false;
+              console.log('[VSCode Translator][ConfigManager] 防循环标志已重置');
+          }, 100);
+      }
   }
 
   /**
    * 更新服务参数（改进版本）
    */
   private async updateServiceParameters(config: vscode.WorkspaceConfiguration): Promise<void> {
-    console.log('[VSCode Translator][ConfigManager] 更新服务参数');
-    
-    const updatedConfig = {
-      url: config.get<string>('url', ''),
-      apiKey: config.get<string>('apiKey', ''),
-      model: config.get<string>('model', ''),
-      secretKey: config.get<string>('secretKey', ''),
-    };
-    
-    // 验证配置完整性
-    if (!this.validateConfig(updatedConfig)) {
-      console.warn('[VSCode Translator][ConfigManager] 配置验证失败，跳过更新');
-      return;
-    }
-    
-    // 检查配置是否实际发生变化
-    if (this.isConfigChanged(updatedConfig)) {
-      console.log('[VSCode Translator][ConfigManager] 检测到配置参数变化，开始更新');
+      console.log('[VSCode Translator][ConfigManager] 更新服务参数');
       
-      // 更新内存配置
-      Object.assign(this.activeConfig, updatedConfig);
+      this.isUpdatingVSCodeConfig = true;
       
-      // 保存到数据库
-      await this.saveActiveConfig();
-      
-      console.log('[VSCode Translator][ConfigManager] 服务参数更新完成');
-      
-      // 触发配置变更事件
-      this._onConfigChange.fire();
-    } else {
-      console.log('[VSCode Translator][ConfigManager] 配置参数无实际变化，跳过更新');
-    }
-  }
-
-  /**
-   * 切换服务提供商（重大改进）
-   */
-  public async switchService(serviceProvider: string): Promise<void> {
-    console.log(`[VSCode Translator][ConfigManager] 开始切换服务提供商: ${this.activeConfig.serviceProvider} -> ${serviceProvider}`);
-    
-    // 设置防循环标志
-    this.isUpdatingVSCodeConfig = true;
-    
-    try {
-      // 1. 保存当前服务配置到数据库
-      console.log('[VSCode Translator][ConfigManager] 保存当前服务配置');
-      await this.saveActiveConfig();
-      
-      // 2. 更新数据库中的活动服务提供商
-      console.log(`[VSCode Translator][ConfigManager] 更新数据库活动服务提供商为: ${serviceProvider}`);
-      await this.configDb.setActiveServiceProvider(serviceProvider);
-      
-      // 3. 从数据库加载新服务提供商的配置
-      console.log(`[VSCode Translator][ConfigManager] 从数据库加载 ${serviceProvider} 配置`);
-      const serviceConfig = await this.configDb.getServiceConfig(serviceProvider);
-      
-      if (serviceConfig) {
-        console.log(`[VSCode Translator][ConfigManager] 使用数据库中 ${serviceProvider} 的配置`);
-        this.activeConfig = {
-          serviceProvider: serviceConfig.serviceProvider,
-          url: serviceConfig.url || '',
-          apiKey: serviceConfig.apiKey || '',
-          secretKey: serviceConfig.secretKey || '',
-          model: serviceConfig.model || ''
-        };
-      } else {
-        console.log(`[VSCode Translator][ConfigManager] ${serviceProvider} 无存储配置，使用默认配置`);
-        this.activeConfig = this.getDefaultConfig(serviceProvider);
+      try {
+          const updatedConfig = {
+              url: config.get<string>('url', ''),
+              apiKey: config.get<string>('apiKey', ''),
+              model: config.get<string>('model', ''),
+              secretKey: config.get<string>('secretKey', ''),
+          };
+          
+          // 验证配置完整性
+          if (!this.validateConfig(updatedConfig)) {
+              console.warn('[VSCode Translator][ConfigManager] 配置验证失败，跳过更新');
+              return;
+          }
+          
+          // 更新内存配置
+          Object.assign(this.activeConfig, updatedConfig);
+          
+          // 保存到数据库
+          await this.saveActiveConfig();
+          
+          console.log('[VSCode Translator][ConfigManager] 服务参数更新完成');
+          
+          // 触发配置变更事件
+          this._onConfigChange.fire();
+          
+      } finally {
+          setTimeout(() => {
+              this.isUpdatingVSCodeConfig = false;
+          }, 100);
       }
-      
-      console.log('[VSCode Translator][ConfigManager] 切换后内存配置:', {
-        serviceProvider: this.activeConfig.serviceProvider,
-        url: this.activeConfig.url ? '***' : '空',
-        apiKey: this.activeConfig.apiKey ? '***' : '空',
-        model: this.activeConfig.model || '空'
-      });
-      
-      // 4. 检查VSCode设置是否需要同步
-      if (!this.isConfigInSyncWithVSCode()) {
-        console.log('[VSCode Translator][ConfigManager] VSCode设置与数据库不同步，开始同步');
-        await this.syncToVSCode();
-      } else {
-        console.log('[VSCode Translator][ConfigManager] VSCode设置已同步，跳过更新');
-      }
-      
-      // 5. 触发配置变更事件
-      this._onConfigChange.fire();
-      console.log('[VSCode Translator][ConfigManager] 服务切换完成');
-      
-    } catch (error) {
-      console.error(`[VSCode Translator][ConfigManager] 切换服务提供商失败: ${serviceProvider}`, error);
-      throw new Error(`切换服务提供商失败: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      // 确保防循环标志被重置
-      this.isUpdatingVSCodeConfig = false;
-    }
-  }
-
-  /**
-   * 检查VSCode设置是否与内存配置同步
-   */
-  private isConfigInSyncWithVSCode(): boolean {
-    const vsConfig = vscode.workspace.getConfiguration('VScodeTranslator');
-    
-    return (
-      vsConfig.get('serviceProvider') === this.activeConfig.serviceProvider &&
-      vsConfig.get('url') === (this.activeConfig.url || '') &&
-      vsConfig.get('apiKey') === (this.activeConfig.apiKey || '') &&
-      vsConfig.get('model') === (this.activeConfig.model || '') &&
-      vsConfig.get('secretKey') === (this.activeConfig.secretKey || '')
-    );
   }
 
   /**
@@ -269,18 +288,6 @@ export class ConfigManager implements vscode.Disposable {
       console.error('[VSCode Translator][ConfigManager] 同步配置到VSCode失败:', error);
       throw error;
     }
-  }
-
-  /**
-   * 检查配置是否实际发生变化
-   */
-  private isConfigChanged(newConfig: Partial<TranslationConfig>): boolean {
-    return (
-      newConfig.url !== this.activeConfig.url ||
-      newConfig.apiKey !== this.activeConfig.apiKey ||
-      newConfig.model !== this.activeConfig.model ||
-      newConfig.secretKey !== this.activeConfig.secretKey
-    );
   }
 
   /**

@@ -58,6 +58,11 @@ export class TextSegmenter {
           continue;
         }
         
+        // 忽略空行（只有换行符的行）
+        if (line === '' && trimmedLine === '') {
+          continue;
+        }
+        
         // 处理普通文本行
         // 检查当前行是否以结束符号结尾且后跟换行符（即自然段落边界）
         const isEndOfParagraph = currentSegment.length > 0 && 
@@ -114,10 +119,36 @@ export class TextSegmenter {
       processedLines = lines.filter(line => !line.trim().startsWith('```'));
     }
     
+    // 处理文本段中的多余空行
+    if (type === 'text') {
+      // 过滤掉连续的空行，只保留单个空行
+      processedLines = this.normalizeEmptyLines(processedLines);
+    }
+    
     return {
       type,
       content: processedLines.join('\n'),
       language: language || (type === 'code' ? 'unknown' : '')
     };
+  }
+  
+  // 规范化空行，避免过多连续空行
+  private normalizeEmptyLines(lines: string[]): string[] {
+    const result: string[] = [];
+    let previousLineWasEmpty = false;
+    
+    for (const line of lines) {
+      const isCurrentLineEmpty = line.trim() === '';
+      
+      // 如果当前行为空且前一行也为空，则跳过（避免连续空行）
+      if (isCurrentLineEmpty && previousLineWasEmpty) {
+        continue;
+      }
+      
+      result.push(line);
+      previousLineWasEmpty = isCurrentLineEmpty;
+    }
+    
+    return result;
   }
 }

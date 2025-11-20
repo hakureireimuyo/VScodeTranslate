@@ -1,0 +1,21 @@
+.translation-container {
+    padding: 16px;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.error-container {
+    padding: 16px;
+    border-radius: 4px;
+    background-color: var(--vscode-errorBackground);
+    color: var(--vscode-errorForeground);
+}
+
+.error-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.error-message {
+    white-space: pre-wrap;
+}

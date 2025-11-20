@@ -21,7 +21,8 @@ export class LogicController implements vscode.Disposable {
   
   constructor(
     private taskManager: TranslationTaskManager,
-    private databaseService: TranslationDatabase
+    private databaseService: TranslationDatabase,
+    private context: vscode.ExtensionContext
   ) {
     this.textSegmenter = new TextSegmenter();
     this.loadConfiguration();
@@ -34,6 +35,12 @@ export class LogicController implements vscode.Disposable {
     // 监听翻译任务错误事件
     this.taskManager.onTranslationError((errorInfo: {taskId: string, error: Error}) => {
       console.error('Translation task error:', errorInfo.error);
+        vscode.window.showErrorMessage(`翻译任务失败: ${errorInfo.error.message}`);
+      
+      // 如果使用Webview面板，可以通知面板显示错误状态
+      if (this.useWebviewPanel && this.webviewPanel) {
+        this.webviewPanel.showError(errorInfo.error.message);
+      }
     });
     // 新增：监听单个翻译完成事件
     this.taskManager.onPartialTranslationComplete((updatedTranslation: TranslationData) => {
@@ -212,7 +219,7 @@ export class LogicController implements vscode.Disposable {
     
     // 创建或更新Webview面板
     if (!this.webviewPanel) {
-      this.webviewPanel = new WebviewPanel();
+      this.webviewPanel = new WebviewPanel(this.context); 
     }
     
     this.webviewPanel.createOrUpdatePanel(cachedResults);

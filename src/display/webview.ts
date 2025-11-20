@@ -1,17 +1,18 @@
 // src/display/webview.ts
 import * as vscode from 'vscode';
 import { TranslationData } from '../types';
-import { MarkdownRenderer } from './makedown';
+import { HtmlRenderer } from './htmlRenderer';
 
 export class WebviewPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
-  private markdownRenderer: MarkdownRenderer;
+  private htmlRenderer: HtmlRenderer;
   private currentTranslationData: TranslationData[] = [];
   
-  constructor() {
-    this.markdownRenderer = new MarkdownRenderer();
+  constructor(context: vscode.ExtensionContext) {
+    this.htmlRenderer = new HtmlRenderer(context);
   }
-  
+
+
   public createOrUpdatePanel(initialData: TranslationData[] = []): void {
     this.currentTranslationData = initialData;
     
@@ -34,219 +35,208 @@ export class WebviewPanel implements vscode.Disposable {
       // 处理来自webview的消息
       this.panel.webview.onDidReceiveMessage(
         message => {
-          switch (message.command) {
-            case 'refresh':
-              this.updatePanelContent();
-              return;
-          }
+          this.handleWebviewMessage(message);
         },
         undefined,
         []
       );
-    }
-    
-    this.updatePanelContent();
-  }
-  
-  /**
-   * 动态更新翻译结果
-   * @param newData 新的翻译数据
-   */
-  public updateTranslationResults(newData: TranslationData[]): void {
-    // 合并新数据
-    newData.forEach(newItem => {
-      const index = this.currentTranslationData.findIndex(
-        item => item.hash === newItem.hash
-      );
-      if (index >= 0) {
-        // 如果找到相同hash的项，则更新该项
-        this.currentTranslationData[index] = { ...this.currentTranslationData[index], ...newItem };
-      } else {
-        // 如果没有找到，则添加新项
-        this.currentTranslationData.push(newItem);
-      }
-    });
-    
-    this.updatePanelContent();
-  }
-  
-  /**
-   * 更新单个翻译项
-   * @param translation 更新的翻译数据
-   */
-  public updateSingleTranslation(translation: TranslationData): void {
-    const index = this.currentTranslationData.findIndex(
-      item => item.hash === translation.hash
-    );
-    
-    if (index >= 0) {
-      // 更新现有项
-      this.currentTranslationData[index] = { ...this.currentTranslationData[index], ...translation };
+      
+      // 初始化Webview内容
+      this.initializeWebview();
     } else {
-      // 添加新项
-      this.currentTranslationData.push(translation);
+      // 如果面板已存在，发送全量更新
+      this.sendTranslationData();
     }
-    
-    this.updatePanelContent();
   }
   
-  public updatePanelContent(): void {
+  /**
+   * 处理来自Webview的消息
+   */
+  private handleWebviewMessage(message: any): void {
+    switch (message.command) {
+        case 'ready':
+            // Webview准备就绪，发送初始数据
+            this.sendTranslationData();
+            break;
+        case 'refreshTranslation':
+            // 重新翻译指定项
+            this.refreshTranslation(message.hash);
+            break;
+        case 'refreshAll':
+            // 刷新所有翻译
+            this.refreshAllTranslations();
+            break;
+    }
+}
+  
+  /**
+   * 初始化Webview内容
+   */
+  private initializeWebview(): void {
+    if (!this.panel) { return; }
+    
+    try {
+      this.panel.webview.html = this.htmlRenderer.generateBaseHtml();
+    } catch (error) {
+        // 如果加载界面生成失败，显示错误页面
+        this.panel.webview.html = this.htmlRenderer.generateErrorHtml(
+            `初始化Webview失败: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+  }
+  
+  /**
+   * 发送翻译数据到Webview
+   */
+  private sendTranslationData(): void {
     if (!this.panel) { return; }
     
     const config = vscode.workspace.getConfiguration('VScodeTranslator');
     const displayMode = config.get<string>('displayMode', 'sidebyside');
     
-    const html = this.generateHtml(displayMode);
-    this.panel.webview.html = html;
+    this.panel.webview.postMessage({
+      command: 'updateData',
+      displayMode: displayMode,
+      translationData: this.currentTranslationData
+    });
   }
   
-  private generateHtml(displayMode: string): string {
-    const style = this.getCssStyle();
+  
+  /**
+   * 重新翻译指定项
+   */
+  private refreshTranslation(hash: string): void {
+    // 这里可以触发重新翻译的逻辑
+    // 暂时只是模拟更新
+    const translation = this.currentTranslationData.find(item => item.hash === hash);
+    if (translation) {
+      // 模拟重新翻译
+      translation.translatedText = `重新翻译`;
+      this.sendSingleTranslationUpdate(translation);
+    }
+  }
+  
+  /**
+   * 刷新所有翻译
+   */
+  private refreshAllTranslations(): void {
+    // 触发所有项的重新翻译
+    this.currentTranslationData.forEach(translation => {
+      translation.translatedText = `刷新翻译`;
+    });
+    this.sendTranslationData();
+  }
+  
+  /**
+   * 动态更新翻译结果
+   */
+  public updateTranslationResults(newData: TranslationData[]): void {
+      const updatedHashes: string[] = [];
+      
+      newData.forEach(newItem => {
+          const index = this.currentTranslationData.findIndex(
+              item => item.hash === newItem.hash
+          );
+          if (index >= 0) {
+              this.currentTranslationData[index] = { 
+                  ...this.currentTranslationData[index], 
+                  ...newItem 
+              };
+              updatedHashes.push(newItem.hash);
+              
+              // 立即发送单个更新，而不是等待批量处理
+              this.sendSingleTranslationUpdate(this.currentTranslationData[index]);
+          } else {
+              this.currentTranslationData.push(newItem);
+              updatedHashes.push(newItem.hash);
+              this.sendSingleTranslationUpdate(newItem);
+          }
+      });
+  }
+
+  /**
+   * 发送单个翻译项的更新（确保立即发送）
+   */
+private sendSingleTranslationUpdate(translation: TranslationData): void {
+    if (!this.panel) { return; }
     
-    let contentHtml = '';
-    if (displayMode === 'sidebyside') {
-      contentHtml = this.generateSideBySideHtml();
+    const config = vscode.workspace.getConfiguration('VScodeTranslator');
+    const displayMode = config.get<string>('displayMode', 'sidebyside');
+    
+    // 直接发送消息
+    this.panel.webview.postMessage({
+        command: 'updateSingle',
+        displayMode: displayMode,
+        translation: translation
+    });
+}
+  
+  /**
+   * 更新单个翻译项
+   */
+  public updateSingleTranslation(translation: TranslationData): void {
+    console.log('[Webview] 接收单个翻译更新:', translation.hash);
+    
+    const index = this.currentTranslationData.findIndex(
+        item => item.hash === translation.hash
+    );
+    
+    if (index >= 0) {
+        this.currentTranslationData[index] = { 
+            ...this.currentTranslationData[index], 
+            ...translation 
+        };
+        console.log('[Webview] 更新现有翻译项');
     } else {
-      contentHtml = this.generateTranslatedOnlyHtml();
+        this.currentTranslationData.push(translation);
+        console.log('[Webview] 添加新翻译项');
     }
     
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>${style}</style>
-      </head>
-      <body>
-        <div class="translation-container">
-          ${contentHtml}
-        </div>
-        <script>
-          const vscode = acquireVsCodeApi();
-          
-          // 定期检查更新
-          setInterval(() => {
-            vscode.postMessage({ command: 'refresh' });
-          }, 5000);
-          
-          // 监听来自扩展的消息
-          window.addEventListener('message', event => {
-            const message = event.data;
-            switch (message.command) {
-              case 'updateContent':
-                // 可以在这里处理特定的更新指令
-                break;
-            }
-          });
-        </script>
-      </body>
-      </html>
-    `;
+    this.sendSingleTranslationUpdate(translation);
+    console.log('[Webview] 已发送更新消息到前端');
+}
+  
+  /**
+   * 显示错误信息
+   */
+  public showError(errorMessage: string): void {
+    if (!this.panel) { return; }
+    
+    this.panel.webview.postMessage({
+      command: 'showError',
+      errorMessage: errorMessage
+    });
   }
   
-  private generateSideBySideHtml(): string {
-    return this.currentTranslationData.map((data, index) => {
-      // 简单判断内容类型，实际可根据内容特征进一步细化
-      const type = data.originalText.trim().startsWith('```') || 
-                   data.originalText.includes('function') ||
-                   data.originalText.includes('class') ? 'code' : 'text';
-      
-      const originalHtml = this.markdownRenderer.render(data.originalText);
-      const translatedHtml = data.translatedText ? 
-        this.markdownRenderer.render(data.translatedText) : 
-        '<em>翻译中...</em>';
-      
-      return `
-        <div class="segment" data-hash="${data.hash}">
-          <div class="original">
-            <h4>原文:</h4>
-            ${originalHtml}
-          </div>
-          <div class="translated">
-            <h4>译文:</h4>
-            ${translatedHtml}
-          </div>
-        </div>
-      `;
-    }).join('');
+  /**
+   * 清除错误信息
+   */
+  public clearError(): void {
+    if (!this.panel) { return; }
+    
+    this.panel.webview.postMessage({
+      command: 'clearError'
+    });
   }
   
-  private generateTranslatedOnlyHtml(): string {
-    return this.currentTranslationData.map(data => {
-      // 简单判断内容类型
-      const type = data.originalText.trim().startsWith('```') || 
-                   data.originalText.includes('function') ||
-                   data.originalText.includes('class') ? 'code' : 'text';
-      
-      const translatedHtml = data.translatedText ? 
-        this.markdownRenderer.render(data.translatedText) : 
-        '<em>翻译中...</em>';
-      
-      return `
-        <div class="translated-only" data-hash="${data.hash}">
-          ${translatedHtml}
-        </div>
-      `;
-    }).join('');
+  /**
+   * 检查面板是否可见
+   */
+  public isVisible(): boolean {
+    return this.panel !== undefined;
   }
   
-  private getCssStyle(): string {
-    return `
-      .translation-container { 
-      font-family: var(--vscode-font-family); 
-      padding: 10px;
-      color: var(--vscode-editor-foreground); /* 使用 VS Code 主题前景色 */
-      background-color: var(--vscode-editor-background); /* 背景色适配主题 */
-      font-size: 14px;
-      line-height: 1.5;
+  /**
+   * 显示面板
+   */
+  public reveal(): void {
+    if (this.panel) {
+      this.panel.reveal();
     }
-      .segment { 
-        display: grid; 
-        grid-template-columns: 1fr 1fr; 
-        gap: 20px; 
-        margin-bottom: 20px;
-        border: 1px solid var(--vscode-panel-border);
-        border-radius: 4px;
-        padding: 10px;
-      }
-      .segment h4 {
-        margin-top: 0;
-        margin-bottom: 8px;
-      }
-
-      .segment p,
-      .segment div {
-        margin-top: 0;
-        margin-bottom: 8px;
-      }
-
-      .segment pre {
-        margin-top: 8px;
-        margin-bottom: 8px;
-      }
-      .original, .translated { 
-        border: 1px solid var(--vscode-panel-border); 
-        padding: 10px; 
-        border-radius: 4px;
-      }
-      code { 
-        background: var(--vscode-textCodeBlock-background); 
-        padding: 2px 4px; 
-        border-radius: 2px;
-      }
-      pre code { 
-        display: block; 
-        padding: 10px; 
-        overflow-x: auto;
-      }
-      .updating {
-        opacity: 0.7;
-      }
-    `;
   }
   
   public dispose(): void {
     this.panel?.dispose();
+    this.panel = undefined;
   }
 }

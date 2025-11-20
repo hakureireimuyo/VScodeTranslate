@@ -142,7 +142,7 @@
           "command": "VScodeTranslator.showAllDatabaseConfigs",
           "title": "VSCode Translator: Show All Database Configs"
         }
-      ] 
+      ]
     },
     "hoverProviders": [
       {
@@ -150,7 +150,6 @@
       }
     ]
   },
-
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
     "compile": "tsc -p ./",
@@ -161,6 +160,7 @@
     "debug:text": "pnpm run compile && node out/debug/textProcessorDebug.js"
   },
   "devDependencies": {
+    "@types/marked": "^5.0.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/sqlite3": "^5.1.0",
@@ -173,5 +173,8 @@
     "glob": "^11.0.3",
     "mocha": "^11.7.5",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "marked": "^17.0.0"
   }
 }

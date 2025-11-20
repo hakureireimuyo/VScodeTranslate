@@ -76,9 +76,6 @@ export class TranslationTaskManager {
     this.pendingTasks.delete(taskId);
     this.runningTasks.add(taskId);
     
-    // 创建更新后的翻译数据数组
-    const updatedTranslations: TranslationData[] = [];
-    
     try {
       // 控制并发数量
       while (this.runningTasks.size > this.maxConcurrency) {
