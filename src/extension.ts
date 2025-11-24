@@ -7,7 +7,7 @@ import { ConfigManager } from './config/config';
 import { registerConfigCommands } from './commands';
 import { LogicController } from './controller';
 import { TranslationTaskManager } from './task';
-import { TranslationServiceFactory } from './translation/TranslationServiceFactory';
+import { TranslationServiceFactory } from './translation/translationservicefactory';
 
 let logicController: LogicController;
 let taskManager: TranslationTaskManager;

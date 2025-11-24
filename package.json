@@ -72,21 +72,30 @@
             "baidu",
             "openai",
             "zhipu",
-            "local"
+            "local",
+            "kimi",
+            "qianfan",
+            "deepseek"
           ],
           "enumItemLabels": [
             "阿里百炼",
-            "百度翻译",
-            "OpenAI 兼容接口",
+            "百度飞桨社区",
+            "OpenAI接口",
             "质谱清言",
-            "本地大模型"
+            "本地服务",
+            "Kimi月之暗面",
+            "百度千帆",
+            "深度求索"
           ],
           "enumDescriptions": [
-            "使用阿里云翻译服务",
-            "使用百度翻译服务",
+            "https://bailian.console.aliyun.com/",
+            "https://aistudio.baidu.com/overview",
             "使用任何兼容 OpenAI API 的翻译服务",
-            "使用质谱清言大模型服务",
-            "使用本地部署的大模型服务"
+            "https://www.bigmodel.cn/finance/overview",
+            "使用本地部署的大模型服务",
+            "https://platform.moonshot.cn/",
+            "https://cloud.baidu.com/product-s/qianfan_home",
+            "https://platform.deepseek.com/usage"
           ],
           "order": 1
         },

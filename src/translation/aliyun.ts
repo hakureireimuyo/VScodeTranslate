@@ -6,7 +6,7 @@ export class AliyunTranslationService extends BaseTranslationService {
     public readonly name = 'aliyun';
     
     // 内置固定请求URL
-    private readonly DEFAULT_URL = 'https://dashscope.aliyuncs.com/api/v1/chat/completions';
+    private readonly DEFAULT_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
 
     async translate(request: TranslationRequest): Promise<TranslationResponse> {
         try {
@@ -18,7 +18,7 @@ export class AliyunTranslationService extends BaseTranslationService {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.config.apiKey}`,
-                    'X-Secret-Key': this.config.secretKey || ''
+                    'Content-Type': 'application/json'
                 },
                 body: {
                     model: this.config.model || 'qwen-turbo',
@@ -54,7 +54,6 @@ export class AliyunTranslationService extends BaseTranslationService {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.config.apiKey}`,
-                    'X-Secret-Key': this.config.secretKey || '',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({

@@ -3,7 +3,11 @@ import { TranslationService, TranslationConfig, TranslationRequest, TranslationR
 import { OpenAITranslationService } from './openai';
 import { AliyunTranslationService } from './aliyun';
 import { BaiduTranslationService } from './baidu';
-import {ZhipuTranslationService} from './zhipu';
+import { ZhipuTranslationService} from './zhipu';
+import { QianfanTranslationService } from './qianfan';
+import { DeepSeekTranslationService } from './deepseek';
+import { KimiTranslationService } from './kimi';
+import { LocalhostTranslationService } from './localhost';
 import * as vscode from 'vscode';
 
 export class TranslationServiceFactory {
@@ -28,6 +32,11 @@ export class TranslationServiceFactory {
         this.serviceRegistry.set('aliyun', AliyunTranslationService);
         this.serviceRegistry.set('baidu', BaiduTranslationService);
         this.serviceRegistry.set('zhipu', ZhipuTranslationService);
+        this.serviceRegistry.set('qianfan', QianfanTranslationService);
+        this.serviceRegistry.set('deepseek', DeepSeekTranslationService);
+        this.serviceRegistry.set('kimi', KimiTranslationService);
+        this.serviceRegistry.set('localhost', LocalhostTranslationService);
+
         console.log('🐾 TranslationServiceFactory: 服务注册表初始化完成，已注册服务:', Array.from(this.serviceRegistry.keys()));
     }
 
